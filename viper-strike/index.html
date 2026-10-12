@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Viper Strike — Helicopter Combat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="game-container"></div>
+
+  <!-- ============ MAIN MENU ============ -->
+  <div id="menu" class="screen">
+    <div class="menu-inner">
+      <header class="title-block">
+        <h1>VIPER<span>STRIKE</span></h1>
+        <p class="tagline" id="tagline">Attack helicopter &middot; stop the convoy before it escapes</p>
+      </header>
+
+      <div class="menu-grid">
+        <section class="panel">
+          <h2><span class="step">01</span>Select Role</h2>
+          <div class="role-cards">
+            <button class="card role-card" data-role="pilot">
+              <div class="role-icon">&#9992;</div>
+              <div><h3>Gunship Pilot</h3><p>Fly the AH-64D Apache and stop the tank convoy from escaping.</p></div>
+            </button>
+            <button class="card role-card" data-role="tank">
+              <div class="role-icon">&#9881;</div>
+              <div><h3>Tank Commander</h3><p>Drive a tank with the convoy and shoot down the gunships hunting you.</p></div>
+            </button>
+          </div>
+          <div class="vehicle-cards hidden" id="vehicle-cards"></div>
+          <div class="preview-wrap">
+            <canvas id="preview"></canvas>
+            <div class="preview-label" id="preview-label">AH-7 "VIPER" GUNSHIP</div>
+          </div>
+          <div class="loadout" id="loadout"></div>
+        </section>
+
+        <section class="panel">
+          <h2><span class="step">02</span>Forces</h2>
+          <div class="slider-row">
+            <label class="slider-label" for="tank-count">Tanks</label>
+            <input type="range" id="tank-count" min="1" max="13" value="6">
+            <output id="tank-count-val" for="tank-count">6</output>
+          </div>
+          <div class="slider-row">
+            <label class="slider-label" for="heli-count">Helicopters</label>
+            <input type="range" id="heli-count" min="1" max="13" value="3">
+            <output id="heli-count-val" for="heli-count">3</output>
+          </div>
+          <div class="density-info" id="density-info"></div>
+
+          <h2><span class="step">03</span>Select Map Theme</h2>
+          <div class="map-cards">
+            <button class="card map-card" data-map="desert">
+              <div class="map-art desert-art"><i class="sun"></i><i class="wall w1"></i><i class="wall w2"></i><i class="dune"></i></div>
+              <div class="map-info">
+                <h3>Desert Valley</h3>
+                <p>A sand-floored canyon between towering rock walls. Dunes, hoodoos, nowhere to hide.</p>
+              </div>
+            </button>
+            <button class="card map-card" data-map="city">
+              <div class="map-art city-art"><i class="tower t1"></i><i class="tower t2"></i><i class="tower t3"></i><i class="tower t4"></i><i class="haze"></i></div>
+              <div class="map-info">
+                <h3>Ruined City</h3>
+                <p>Scorched avenues between broken skyscrapers. Use the towers as cover.</p>
+              </div>
+            </button>
+          </div>
+
+          <button id="start-btn">LAUNCH MISSION</button>
+        </section>
+      </div>
+
+      <footer class="controls-help" id="controls-help"></footer>
+    </div>
+  </div>
+
+  <!-- ============ HUD ============ -->
+  <div id="hud" class="hidden">
+    <div id="hud-tl" class="hud-box">
+      <div class="hud-label" id="hud-obj-title">CONVOY</div>
+      <div class="mission-row"><span id="hud-r1-label">DESTROYED</span><b id="hud-r1">0/0</b></div>
+      <div class="mission-row"><span id="hud-r2-label">ESCAPED</span><b id="hud-r2">0</b></div>
+      <div class="mission-row"><span id="hud-r3-label">ON MAP</span><b id="hud-r3">0</b></div>
+      <div class="mission-row"><span>SCORE</span><b id="hud-score">0</b></div>
+      <div class="hud-sub" id="hud-time">0:00</div>
+    </div>
+
+    <div id="hud-tr" class="hud-box">
+      <div class="hud-label">RADAR</div>
+      <canvas id="radar" width="170" height="250"></canvas>
+      <div class="cam-label">CAM <b id="hud-cam">CHASE</b> <kbd>C</kbd></div>
+    </div>
+
+    <div id="hud-bl" class="hud-box">
+      <div class="hud-label" id="hud-unit-name">VIPER-1 HULL</div>
+      <div class="hpbar"><div id="hud-hp-fill"></div><span id="hud-hp-text"></span></div>
+      <div class="flight">
+        <div><small id="hud-f1-label">ALT</small><b id="hud-f1">0</b><small id="hud-f1-unit">m</small></div>
+        <div><small>SPD</small><b id="hud-spd">0</b><small>km/h</small></div>
+        <div><small>HDG</small><b id="hud-hdg">000</b></div>
+      </div>
+      <div class="vsi" id="hud-vsi-row"><small>V/S</small><div class="vsi-bar"><i id="hud-vsi"></i></div><small id="hud-vsi-text">0</small></div>
+    </div>
+
+    <div id="hud-br" class="hud-box">
+      <div class="hud-label"><span id="hud-w1-label">MISSILE</span> <span id="hud-missile-state">READY</span></div>
+      <div class="meter"><div id="hud-missile-fill"></div></div>
+      <div class="flare-pips missile-pips hidden" id="hud-missile-pips"></div>
+      <div class="lock-state" id="hud-lock">NO TARGET</div>
+      <div class="hud-label"><span id="hud-w2-label">FLARES</span> <span id="hud-flare-state"></span></div>
+      <div class="flare-pips" id="hud-flares"></div>
+    </div>
+
+    <div id="killfeed"></div>
+    <div id="center-msg"></div>
+    <div id="sub-msg"></div>
+    <div id="warning" class="hidden">&#9888; MISSILE INCOMING &mdash; PRESS F</div>
+    <div id="alt-warning" class="hidden">PULL UP</div>
+    <div id="bounds-warning" class="hidden">RETURN TO AREA OF OPERATIONS</div>
+    <div id="lock-zone" class="hidden"></div>
+    <div id="crosshair"><i></i></div>
+    <div id="lock-reticle" class="hidden"><b class="c1"></b><b class="c2"></b><b class="c3"></b><b class="c4"></b><span></span></div>
+    <div id="damage-vignette"></div>
+  </div>
+
+  <!-- ============ PAUSE ============ -->
+  <div id="pause" class="screen hidden">
+    <div class="modal">
+      <h1>PAUSED</h1>
+      <div class="btn-row">
+        <button id="resume-btn">RESUME</button>
+        <button id="quit-btn" class="secondary">ABORT MISSION</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ RESULTS ============ -->
+  <div id="results" class="screen hidden">
+    <div class="modal">
+      <h1 id="results-title">MISSION COMPLETE</h1>
+      <p id="results-sub"></p>
+      <table id="results-table"></table>
+      <div class="btn-row">
+        <button id="again-btn">PLAY AGAIN</button>
+        <button id="menu-btn" class="secondary">MAIN MENU</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading" class="screen hidden"><div class="loading-text">DEPLOYING&hellip;</div></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
