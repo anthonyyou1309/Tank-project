@@ -83,6 +83,7 @@ function freshState() {
     pressure: 100,
     rollA: 0, rollFrom: 0, rollTo: 0, rollT: 1, rollDur: 1, flipping: false, flipDone: false,
     pitch: 0, lean: 0,
+    laneRoll: 0, laneRollFrom: 0, laneRollTo: 0, laneRollT: 1,
     od: 0, bumpCD: 0, crashT: 0, crashSpin: new THREE.Vector3(),
     fxHop: 0, fxFlip: 0, fxLeft: 0, fxRight: 0, cushion: false,
     shake: 0, camY: 0, fov: 62,
@@ -315,6 +316,13 @@ function actLane(dir) {
   if (nl === s.lane) return;
   s.prevLane = s.lane;
   s.lane = nl;
+  // Barrel roll toward the new lane (visual only): clockwise from behind when
+  // moving right. A roll already in progress just finishes in the new direction.
+  s.laneRollFrom = s.laneRoll;
+  s.laneRollTo = -dir * TAU + TAU * Math.round(s.laneRoll / TAU);
+  if (Math.abs(s.laneRollTo - s.laneRoll) < Math.PI) s.laneRollTo -= dir * TAU;
+  s.laneRollT = 0;
+  if (dir > 0) s.fxLeft = Math.max(s.fxLeft, 0.12); else s.fxRight = Math.max(s.fxRight, 0.12);
   if (!s.grounded && !s.inverted) {
     // Airborne: the front side-facing thrusters push the car sideways.
     s.pressure = Math.max(0, s.pressure - COST.airShift);
@@ -608,16 +616,27 @@ function updateRoll(dt) {
   }
 }
 
+const LANE_ROLL_TIME = 0.4;
 function updateCarVisual(dt, eff) {
   updateRoll(dt);
-  car.root.position.set(s.x, s.y + CAR_H / 2, 0);
+  if (s.laneRollT < LANE_ROLL_TIME) {
+    s.laneRollT += dt;
+    const k = Math.min(1, s.laneRollT / LANE_ROLL_TIME);
+    const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    s.laneRoll = s.laneRollFrom + (s.laneRollTo - s.laneRollFrom) * e;
+    if (k >= 1) s.laneRoll = 0;
+  }
+  // Lift the car clear of the surface while it is on its side (it is wider than tall).
+  const clear = Math.abs(Math.sin(s.laneRoll)) * (CAR_W / 2 + 0.05 - CAR_H / 2);
+  const lift = s.inverted ? -clear : (s.grounded ? clear : 0);
+  car.root.position.set(s.x, s.y + CAR_H / 2 + lift, 0);
   car.root.rotation.set(0, s.lean * 0.6, 0);
   let pitchT = 0;
   if (s.grounded && s.supportObj && s.supportObj.kind === 'ramp') pitchT = Math.atan2(s.supportObj.rampH, s.supportObj.len);
   else if (!s.grounded && !s.inverted) pitchT = THREE.MathUtils.clamp(s.vy / eff, -0.4, 0.4) * 0.8;
   s.pitch += (pitchT - s.pitch) * Math.min(1, dt * 10);
   car.pitch.rotation.x = s.pitch;
-  car.roll.rotation.z = s.rollA + s.lean;
+  car.roll.rotation.z = s.rollA + s.laneRoll + s.lean;
   car.update(dt, eff);
   emitPlumes();
 }
